@@ -1,3 +1,5 @@
+
+%%writefile app.py
 import streamlit as st
 import pandas as pd
 import matplotlib.pyplot as plt
@@ -11,7 +13,7 @@ def load_data():
     return pd.read_csv("https://raw.githubusercontent.com/hy5373/Beijing_AIQ/refs/heads/main/preprocessed_air_quality_data.csv")
 
 # Load the saved Random Forest model
-@st.cache_data
+@st.cache_resource
 def load_model():
     model = joblib.load("random_forest_model.pkl")
     station_encoder = joblib.load("station_encoder.pkl")
@@ -56,12 +58,10 @@ def main():
         st.write("This section provides a preview and summary of the dataset.")
         st.dataframe(df.head(5))  # Display the first few rows
         st.write("Dataset Shape:", df.shape)
-        st.text(df.info())  # Use text to avoid excessive Streamlit logs
         st.write("Statistical Summary:")
         st.write(df.describe().T)
         st.write("Unique Stations in the dataset")
         st.write(df['station'].unique().tolist())
-
 
     # EDA Section
     elif choice == "EDA":
@@ -85,12 +85,14 @@ def main():
             plt.figure(figsize=(10, 6))
             sns.heatmap(df[numeric_columns].corr(), annot=True, fmt=".2f", cmap="coolwarm")
             st.pyplot(plt)
+            plt.close()
 
         # Distribution of PM2.5
         st.subheader("PM2.5 Distribution")
         plt.figure(figsize=(8, 5))
         sns.histplot(df["PM2.5"], kde=True, bins=30, color="blue")
         st.pyplot(plt)
+        plt.close()
 
         # Average Pollutant Concentrations
         st.subheader("Average Pollutant Concentrations")
@@ -103,6 +105,7 @@ def main():
         plt.ylabel("Average Concentration")
         plt.title("Average Pollutant Concentrations")
         st.pyplot(plt)
+        plt.close()
 
     # Modeling and Prediction Section
     elif choice == "Modeling and Prediction":
@@ -123,34 +126,37 @@ def main():
 
         # When the predict button is clicked
         if st.button("Predict PM2.5"):
-            try:
-                # Encode station name
-                station_encoded = station_encoder.transform([station_name])[0]
+            valid_stations = station_encoder.classes_.tolist()
+            if station_name not in valid_stations:
+                st.error(f"Invalid station name. Valid stations are: {', '.join(valid_stations)}")
+            else:
+                try:
+                    # Encode station name
+                    station_encoded = station_encoder.transform([station_name])[0]
 
-                # Create a DataFrame for prediction
-                input_data = pd.DataFrame([{
-                    "year": year,
-                    "month": month,
-                    "day": day,
-                    "PM10": pm10,
-                    "SO2": so2,
-                    "NO2": no2,
-                    "CO": co,
-                    "O3": o3,
-                    "DEWP": dewp,
-                    "station": station_encoded
-                }])
+                    # Create a DataFrame for prediction
+                    input_data = pd.DataFrame([{
+                        "year": year,
+                        "month": month,
+                        "day": day,
+                        "PM10": pm10,
+                        "SO2": so2,
+                        "NO2": no2,
+                        "CO": co,
+                        "O3": o3,
+                        "DEWP": dewp,
+                        "station": station_encoded
+                    }])
 
-                # Predict PM2.5
-                prediction = model.predict(input_data)[0]
+                    # Predict PM2.5
+                    prediction = model.predict(input_data)[0]
 
-                # Display the prediction
-                st.success(f"Predicted PM2.5 Value: {prediction:.2f}")
-            except ValueError:
-                st.error("Station name not recognized. Please enter a valid station.")
-            except Exception as e:
-                st.error(f"An error occurred: {e}")
+                    # Display the prediction
+                    st.success(f"Predicted PM2.5 Value: {prediction:.2f}")
+                except Exception as e:
+                    st.error(f"An error occurred: {e}")
 
 # Run the app
 if __name__ == "__main__":
     main()
+
